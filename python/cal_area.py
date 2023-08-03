@@ -1,30 +1,55 @@
-def calculate_area_using_divide_and_conquer(length, width):
-    # Base case: Check if either length or width is less than or equal to zero
-    if length <= 0 or width <= 0:
-        return 0
+class Rectangle:
+    def __init__(self, length, width):
+        self.length = length
+        self.width = width
 
-    # Base case: Check if either length or width is 1
-    if length == 1 or width == 1:
-        return max(length, width)
+    def calculate_area(self):
+        return self.length * self.width
 
-    # Divide: Split the rectangle into two smaller rectangles
-    half_width = width // 2
 
-    # Conquer: Recursively calculate the areas of the two smaller rectangles
-    area1 = calculate_area_using_divide_and_conquer(length, half_width)
-    area2 = calculate_area_using_divide_and_conquer(length, half_width + (width % 2))
+class Triangle:
+    def __init__(self, base, height):
+        self.base = base
+        self.height = height
 
-    # Combine: Add the areas of the two smaller rectangles
-    total_area = area1 + area2
+    def calculate_area(self):
+        return 0.5 * self.base * self.height
+trian
 
-    return total_area
+def get_user_input(message):
+    try:
+        value = float(input(message))
+        if value <= 0:
+            raise ValueError("Please enter a positive number.")
+        return value
+    except ValueError as e:
+        print(str(e))
+        return get_user_input(message)
+
 
 def main():
-    length = float(input("Please enter the length of the rectangle: "))
-    width = float(input("Please enter the width of the rectangle: "))
+    print("Welcome to the Shape Area Calculator!")
 
-    area = calculate_area_using_divide_and_conquer(length, width)
-    print("The area of the rectangle is:", area)
+    shape_type = input("Please enter the shape (rectangle or triangle): ").lower()
+
+    if shape_type == "rectangle":
+        length = get_user_input("Please enter the length of the rectangle: ")
+        width = get_user_input("Please enter the width of the rectangle: ")
+
+        shape = Rectangle(length, width)
+    elif shape_type == "triangle":
+        base = get_user_input("Please enter the base of the triangle: ")
+        height = get_user_input("Please enter the height of the triangle: ")
+
+        shape = Triangle(base, height)
+    else:
+        print("Invalid shape. Please enter either 'rectangle' or 'triangle'.")
+        return
+
+    area = shape.calculate_area()
+
+    print(f"The area of the {shape_type} is: {area}")
+
 
 if __name__ == "__main__":
     main()
