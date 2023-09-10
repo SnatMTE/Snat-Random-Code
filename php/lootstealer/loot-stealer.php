@@ -120,7 +120,7 @@ if ($_GET["cmd"] == "raid-days")
 
         //Lets check when it was last updated.
 
-        checkAccessDate($spreadsheetId, $credentialsPath, $apiKey); # Dummied out for now until it is fixed
+        checkAccessDate($spreadsheetId, $credentialsPath, $apiKey);
         
         // Set the range of the cell you want to retrieve (H1 in this case)
         $range = 'Schedule!H1:H1';
