@@ -1,3 +1,5 @@
+// Written by Matthew Ellis
+// LSIB: London School of International Business
 using System;
 using System.Collections.Generic;
 
