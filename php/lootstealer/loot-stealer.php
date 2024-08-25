@@ -1,204 +1,311 @@
 <?php
 /*
     @Application: Loot Stealer
-    @Description: This bot controls everything raid related and let people know what the fuck is going on - uses webhooks!
+    @Description: This bot controls everything raid-related and lets people know what's happening via webhooks!
+    @Version: 1.2
 */
 
-//date_default_timezone_set('Europe/London');
+// Set debug mode
+$debug = true;  // Set to true to enable debug mode
 
+// Load Google Sheets API client
 require_once 'vendor/autoload.php';
-$credentialsPath = 'XXXXXXXXXXXXXXXXXXXXX';
-$apiKey = 'XXXXXXXXXXXXXXXXXXXXX';
-$spreadsheetId = 'XXXXXXXXXXXXXXXXXXXXX';
 
+// Google Sheets credentials and API key
+$credentialsPath = 'XXXXXXXXXXXXXXXXXXXXXXXXXX.apps.googleusercontent.com.json';
+$apiKey = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXX';
+$spreadsheetId = 'XXXXXXXXXXXXXXXXXXXXXXXXXX';
 
-function recordAccessDate() {
-    $accessFile = 'accessed.txt';
+// Function to send message to Discord webhook
+function sendToDiscord($message, $userId = '') {
+    global $debug;
 
-    // Get the current timestamp (date and time)
-    $currentTimestamp = time();
+    // Prepare Discord webhook URL
+    $webhookurl = "https://discord.com/api/webhooks/XXXXXXXXXXXXXXXXXXXXXXXXXXX";
 
-    // Save the current timestamp to the file
-    if (file_put_contents($accessFile, $currentTimestamp) !== false) {
-        // Timestamp recorded successfully
-        exit();
-    } else {
-        $help = "HELP! <@XXXXXXXXXXXXXXXXXXXXX>, I can't record the timestamp. I'm alright being lazy, but I can't do shit!";
-        sendToDiscord($help);
-        exit();
-    }
-}
-
-
-function checkAccessDate($spreadsheetId, $credentialsPath, $apiKey) {
-    // Read the timestamp from "accessed.txt"
-    $accessFile = 'accessed.txt';
-    if (file_exists($accessFile)) {
-        $accessTimestamp = (int) file_get_contents($accessFile); // Read the timestamp from the file
-
-        // Retrieve the timestamp from Google Sheets cell C14
-        $rangeC14 = 'Schedule!C14';
-
-        $client = new \Google\Client();
-        $client->setScopes([\Google\Service\Sheets::SPREADSHEETS_READONLY]);
-        $client->setAuthConfig($credentialsPath);
-        $client->setDeveloperKey($apiKey);
-
-        $service = new \Google\Service\Sheets($client);
-
-        try {
-            // Get the date from cell C14 in Google Sheets
-            $responseC14 = $service->spreadsheets_values->get($spreadsheetId, $rangeC14);
-            $spreadsheetTimestampC14 = strtotime($responseC14->getValues()[0][0]);
-
-            // Get today's timestamp
-            $currentTimestamp = $accessTimestamp;
-
-           ///sendToDiscord("Current Timestamp: " . $currentTimestamp . " - " . date('d M Y H:i:s Z', $currentTimestamp));
-            //sendToDiscord("Spreadsheet Timestamp: " . $spreadsheetTimestampC14 . " - " . date('d M Y H:i:s Z', $spreadsheetTimestampC14));
-
-            if ($currentTimestamp >= $spreadsheetTimestampC14) {
-                //sendToDiscord("Debug: We are on the wrong week");
-                sendToDiscord("Hey <@XXXXXXXXXXXXXXXXXXXXX>, can you switch to the next raid week for me?");
-                exit();
-            } else {
-                //sendToDiscord("Debug: We are on the correct week.");
-                // Retrieve the date from Google Sheets cell D1
-                $rangeD1 = 'Schedule!D1';
-
-                // Get the date from cell D1 in Google Sheets
-                $responseD1 = $service->spreadsheets_values->get($spreadsheetId, $rangeD1);
-                $spreadsheetTimestampD1 = strtotime($responseD1->getValues()[0][0]);
-
-                // Calculate the difference in seconds between D1 and today
-                $timeDifferenceD1 = $spreadsheetTimestampD1 - $currentTimestamp;
-
-                if ($timeDifferenceD1 <= 604800 || date('N') == 2) {
-                    //sendToDiscord("Debug: I was murdered because it hasn't been seven days yet or it's Tuesday");
-                    exit();
-                } else {
-                    //sendToDiscord("Debug: I am still alive because it HAS been seven days and it's not Tuesday.");
-                }                
-                
-            }
-        } catch (Google_Service_Exception $e) {
-            sendToDiscord("Error fetching the date from Google Sheets: " . $e->getMessage());
-        }
-    } else {
-        $help = "HELP! <@XXXXXXXXXXXXXXXXXXXXX>, I can't record the date. I'm alright being lazy, but I can't do shit!";
-        sendToDiscord($help);
-        exit();
-    }
-}
-
-
-function sendToDiscord($message)
-
-{
-    $webhookurl = "https://discord.com/api/webhooks/XXXXXXXXXXXXXXXXXXXXX";
-    $timestamp = date("c", strtotime("now"));
-    $json_data = json_encode([
-        "content" => "$message",
+    // Prepare JSON data
+    $json_data = [
+        "content" => $message,
         "username" => "Loot Stealer",
         "tts" => false,
-    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+    ];
 
-    $ch = curl_init( $webhookurl );
-    curl_setopt( $ch, CURLOPT_HTTPHEADER, array('Content-type: application/json'));
-    curl_setopt( $ch, CURLOPT_POST, 1);
-    curl_setopt( $ch, CURLOPT_POSTFIELDS, $json_data);
-    curl_setopt( $ch, CURLOPT_FOLLOWLOCATION, 1);
-    curl_setopt( $ch, CURLOPT_HEADER, 0);
-    curl_setopt( $ch, CURLOPT_RETURNTRANSFER, 1);
+    // Encode JSON data
+    $json_payload = json_encode($json_data);
 
-    $response = curl_exec( $ch );
-    curl_close( $ch );
+    // Set up cURL request
+    $ch = curl_init($webhookurl);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-type: application/json'));
+    curl_setopt($ch, CURLOPT_POST, 1);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $json_payload);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
+    curl_setopt($ch, CURLOPT_HEADER, 0);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+
+    // Execute cURL request
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+    // Handle response if needed
+    if ($response === false) {
+        echo 'Error sending message to Discord: ' . curl_error($ch);
+    }
 }
 
-if ($_GET["cmd"] == "raid-days")
-    {
+// Function to fetch availability status from Google Sheets for each user
+function fetchAvailabilityStatus($spreadsheetId, $credentialsPath, $apiKey) {
+    global $debug;
+    // Initialize Google Sheets API client
+    $client = new \Google\Client();
+    $client->setScopes([\Google\Service\Sheets::SPREADSHEETS]);
+    $client->setAuthConfig($credentialsPath);
+    $client->setAccessType('offline');
 
-        //Lets check when it was last updated.
+    // Create Google Sheets service instance
+    $service = new \Google\Service\Sheets($client);
 
-        checkAccessDate($spreadsheetId, $credentialsPath, $apiKey);
-        
-        // Set the range of the cell you want to retrieve (H1 in this case)
-        $range = 'Schedule!H1:H1';
+    // Define the mapping of Discord user IDs to Google Sheets ranges and names
+    $userRanges = [
+        'XXXXXXXXXXX' => ['range' => 'J4',  'name' => 'XXXXXXXXXXX'],
+        'XXXXXXXXXXX' => ['range' => 'J5',  'name' => 'XXXXXXXXXXX'],
+        'XXXXXXXXXXX' => ['range' => 'J6',  'name' => 'XXXXXXXXXXX'],
+        'XXXXXXXXXXX' => ['range' => 'J7',  'name' => 'XXXXXXXXXXX'],
+        'XXXXXXXXXXX' => ['range' => 'J8',  'name' => 'XXXXXXXXXXX'],
+        'XXXXXXXXXXX' => ['range' => 'J9',  'name' => 'XXXXXXXXXXX'],
+        'XXXXXXXXXXX'  => ['range' => 'J10', 'name' => 'XXXXXXXXXXX'],
+        'XXXXXXXXXXX' => ['range' => 'J11', 'name' => 'XXXXXXXXXXX'],
+    ];
 
-        // Create a new Google Client instance
-        $client = new \Google\Client();
-        $client->setScopes([\Google\Service\Sheets::SPREADSHEETS_READONLY]);
-        $client->setAuthConfig($credentialsPath);
-        $client->setDeveloperKey($apiKey);
+    try {
+        // Check each user's availability status
+        foreach ($userRanges as $userId => $info) {
+            $cellValue = '';
+            $response = $service->spreadsheets_values->get($spreadsheetId, "Schedule!{$info['range']}");
+            $values = $response->getValues();
 
-        // Create a Google Sheets service instance
-        $service = new \Google\Service\Sheets($client);
-
-        // Retrieve the values from the spreadsheet
-        $response = $service->spreadsheets_values->get($spreadsheetId, $range);
-        $values = $response->getValues();
-
-        // Get the value in H1
-        $value = $values[0][0];
-
-        //$message = "Value in H1: " . $value;
-        $raidDays = explode(",", $value);
-        $lootDays = $value;
-
-        if (count($raidDays) > 3 OR count($raidDays) == 3) {
-            // Randomly pick three values
-            $randomDays = array_rand($raidDays, 3);
-            $selectedDays = [];
-            
-            // Retrieve the selected days
-            foreach ($randomDays as $randomDay) {
-                $selectedDays[] = $raidDays[$randomDay];
+            if (!empty($values)) {
+                $cellValue = isset($values[0][0]) ? $values[0][0] : '';
             }
-            
-            $raidDays = "Hey <@XXXXXXXXXXXXXXXXXXXXX>. This week you are getting me loot on " . implode(', ', $selectedDays) . ".";
-            sendToDiscord($raidDays); 
-            recordAccessDate();
-            exit();
 
-        } else {
-            try {
-                $range = 'Schedule!J12';
-                $responseDays = $service->spreadsheets_values->get($spreadsheetId, $range);
-                $valueDays = $responseDays->getValues()[0][0];
+            // If cell value is not 'Yes', send the notification
+            if ($cellValue !== 'Yes') {
+                // Notify the user
+                if ($debug) {
+                    sendToDiscord("Hey {$info['name']}, can you update the spreadsheet with your availability for raid days?");
+                } else {
+                    sendToDiscord("Hey <@$userId>, can you update the spreadsheet with your availability for raid days?");
+                }
                 
-                if ($valueDays === 'Yes') {
-                    $raidDays = "Aww <@XXXXXXXXXXXXXXXXXXXXX, you are only getting me loot on $lootDays.";
-                    sendToDiscord($raidDays); 
-                    recordAccessDate();
-                    exit();
-                } elseif ($valueDays === 'No') {
-                    $namesAndRanges = [
-                        'XXXXXXXXXXXXXXXXXXXXX' => 'J4',   
-                        'XXXXXXXXXXXXXXXXXXXXX' => 'J5',   
-                        'XXXXXXXXXXXXXXXXXXXXX' => 'J6',   
-                        'XXXXXXXXXXXXXXXXXXXXX'  => 'J7',   
-                        'XXXXXXXXXXXXXXXXXXXXX' => 'J8',   
-                        'XXXXXXXXXXXXXXXXXXXXX' => 'J9',   
-                        'XXXXXXXXXXXXXXXXXXXXX' => 'J10',  
-                        'XXXXXXXXXXXXXXXXXXXXX' => 'J11',  
-                    ];
-            
-                    foreach ($namesAndRanges as $name => $range) {
-                        $response = $service->spreadsheets_values->get($spreadsheetId, "Schedule!$range");
-                        $value = $response->getValues()[0][0];
-            
-                        if ($value === 'No') {
-                            $discordMessage = "Hey <@$name>, can you update the speadsheet so I can figure out the days?";
-                            sendToDiscord($discordMessage);
-                        }
+                // Optionally, add a short delay to avoid rate limits or duplicate handling issues
+                usleep(500000); // Sleep for 0.5 seconds
+            }
+        }
+
+    } catch (\Google\Service\Exception $e) {
+        echo "Error fetching availability status: " . $e->getMessage();
+    }
+}
+
+// Function to fetch a specific cell value
+function getCellValue($spreadsheetId, $range, $credentialsPath) {
+    $client = new \Google\Client();
+    $client->setScopes([\Google\Service\Sheets::SPREADSHEETS]);
+    $client->setAuthConfig($credentialsPath);
+
+    $service = new \Google\Service\Sheets($client);
+    $response = $service->spreadsheets_values->get($spreadsheetId, $range);
+    return isset($response->getValues()[0][0]) ? $response->getValues()[0][0] : null;
+}
+
+// Function to copy data from one range to another
+function copyRange($spreadsheetId, $sourceRange, $destinationRange, $service) {
+    try {
+        // Get data from the source range
+        $response = $service->spreadsheets_values->get($spreadsheetId, $sourceRange);
+        $data = $response->getValues();
+
+        if ($data === null) {
+            $data = []; // Ensure $data is an array even if null
+        }
+
+        // Prepare the data to be copied to the destination
+        $body = new \Google\Service\Sheets\ValueRange(['values' => $data]);
+        $params = ['valueInputOption' => 'USER_ENTERED']; // Ensure correct formatting
+
+        // Update the destination range with the copied data
+        $service->spreadsheets_values->update($spreadsheetId, $destinationRange, $body, $params);
+    } catch (\Google\Service\Exception $e) {
+        echo "Error copying range: " . $e->getMessage();
+    }
+}
+
+// Function to clear values in a range
+function clearRange($spreadsheetId, $range, $service) {
+    try {
+        // Clear the values in the specified range
+        $clearRequest = new \Google\Service\Sheets\ClearValuesRequest();
+        $service->spreadsheets_values->clear($spreadsheetId, $range, $clearRequest);
+    } catch (\Google\Service\Exception $e) {
+        echo "Error clearing range: " . $e->getMessage();
+    }
+}
+
+// Main logic to check date and copy data
+function checkAndCopyData($spreadsheetId, $credentialsPath) {
+    // Initialize Google Sheets API client
+    $client = new \Google\Client();
+    $client->setScopes([\Google\Service\Sheets::SPREADSHEETS]);
+    $client->setAuthConfig($credentialsPath);
+    $client->setAccessType('offline');
+    $service = new \Google\Service\Sheets($client);
+
+    // Get the current date and the date from C14
+    $currentDate = date('d-m-Y');
+    $c14Date = getCellValue($spreadsheetId, 'Schedule!C14', $credentialsPath);
+
+    if ($c14Date === $currentDate) {
+        // Dates match, copy data from C17:I17 to C4:I4
+
+        $updateRange = 'Schedule!E1';
+        $updateBody = new Google_Service_Sheets_ValueRange([
+            'range' => $updateRange,
+            'values' => [[0]]
+        ]);
+
+        try {
+            copyRange($spreadsheetId, 'Schedule!C17:I17', 'Schedule!C4:I4', $service);
+            copyRange($spreadsheetId, 'Schedule!C18:I18', 'Schedule!C5:I5', $service);
+            copyRange($spreadsheetId, 'Schedule!C19:I19', 'Schedule!C6:I6', $service);
+            copyRange($spreadsheetId, 'Schedule!C20:I20', 'Schedule!C7:I7', $service);
+            copyRange($spreadsheetId, 'Schedule!C21:I21', 'Schedule!C8:I8', $service);
+            copyRange($spreadsheetId, 'Schedule!C22:I22', 'Schedule!C9:I9', $service);
+            copyRange($spreadsheetId, 'Schedule!C23:I23', 'Schedule!C10:I10', $service);
+            copyRange($spreadsheetId, 'Schedule!C24:I24', 'Schedule!C11:I11', $service);
+
+            clearRange($spreadsheetId, 'Schedule!C17:I17', $service);
+            clearRange($spreadsheetId, 'Schedule!C18:I18', $service);
+            clearRange($spreadsheetId, 'Schedule!C19:I19', $service);
+            clearRange($spreadsheetId, 'Schedule!C20:I20', $service);
+            clearRange($spreadsheetId, 'Schedule!C21:I21', $service);
+            clearRange($spreadsheetId, 'Schedule!C22:I22', $service);
+            clearRange($spreadsheetId, 'Schedule!C23:I23', $service);
+            clearRange($spreadsheetId, 'Schedule!C24:I24', $service);
+
+            // Retrieve and format date from C14
+            $c14Date = getCellValue($spreadsheetId, 'Schedule!C14', $credentialsPath);
+            if ($c14Date) {
+                // Convert date from UK format (DD/MM/YYYY) to USA format (MM-DD-YYYY)
+                try {
+                    $date = DateTime::createFromFormat('d-m-Y', $c14Date);
+                    if ($date === false) {
+                        throw new Exception("Date format is incorrect.");
                     }
+                    $formattedDate = $date->format('m-d-Y');
+                } catch (Exception $e) {
+                    echo "Error formatting date: " . $e->getMessage();
                     exit();
                 }
-            } catch (Google_Service_Exception $e) {
-                echo "Error fetching J12 value: " . $e->getMessage();
+
+                // Update the formatted date to cell D1
+                $destinationRangeDate = 'Schedule!D1';
+                $bodyDate = new \Google\Service\Sheets\ValueRange([
+                    'values' => [[$formattedDate]]
+                ]);
+                $paramsDate = ['valueInputOption' => 'USER_ENTERED'];
+                $service->spreadsheets_values->update($spreadsheetId, $destinationRangeDate, $bodyDate, $paramsDate);
             }
-          
+
+            // Notify users who haven't filled the required information
+            //fetchAvailabilityStatus($spreadsheetId, $credentialsPath, $apiKey); 
+        } catch (\Google\Service\Exception $e) {
+            echo "Error in checkAndCopyData: " . $e->getMessage();
         }
     }
+}
 
+// Main logic based on the command received
+if ($_GET["cmd"] == "raid-days") {
+    // Initialize Google Sheets API client
+    $client = new \Google\Client();
+    $client->setScopes([
+        'https://www.googleapis.com/auth/spreadsheets', 
+    ]);    
+    $client->setAuthConfig($credentialsPath);
+    $client->setDeveloperKey($apiKey);
+
+    // Create Google Sheets service instance
+    $service = new \Google\Service\Sheets($client);
+
+    // Run the check and copy data logic
+    checkAndCopyData($spreadsheetId, $credentialsPath);
+
+    // Fetch availability status of users
+    fetchAvailabilityStatus($spreadsheetId, $credentialsPath, $apiKey);
+
+    try {
+        // Retrieve raid days from cell H1 in Google Sheets
+        $range = 'Schedule!H1';
+        $response = $service->spreadsheets_values->get($spreadsheetId, $range);
+        $raidDays = $response->getValues()[0][0] ?? '';
+    
+        // Retrieve the value from cell E1
+        $e1Range = 'Schedule!E1';
+        $e1Response = $service->spreadsheets_values->get($spreadsheetId, $e1Range);
+        $e1Value = $e1Response->getValues()[0][0] ?? '';
+    
+        // Check if either cell H1 or E1 is empty
+        if (empty($raidDays)) {
+            echo "Skipping message because required cells are empty.";
+            return;
+        }
+    
+        // Convert raid days string to an array
+        $raidDaysArray = explode(",", $raidDays);
+        
+        // Determine the number of raid days available
+        $numRaidDays = count($raidDaysArray);
+        
+        // If there are fewer than three raid days, use all available days
+        if ($numRaidDays < 3) {
+            $selectedDays = $raidDaysArray;
+        } else {
+            // Randomly select three raid days
+            $randomKeys = array_rand($raidDaysArray, 3);
+            $selectedDays = [];
+            foreach ($randomKeys as $key) {
+                $selectedDays[] = $raidDaysArray[$key];
+            }
+        }
+    
+        if ($e1Value != 1) {
+            // Determine the message based on debug mode
+            if ($debug) {
+                $raidDaysMessage = "Hey Raiders. You are getting me loot on: " . implode(', ', $selectedDays) . ".";
+            } else {
+                $raidDaysMessage = "Hey <@&XXXXXXXXXXX>. You are getting me loot on: " . implode(', ', $selectedDays) . ".";
+            }
+        
+            // Send Discord message with selected raid days
+            sendToDiscord($raidDaysMessage);
+        } else {
+            echo "Skipping message because E1 is set to 1.";
+        }
+        
+        // Update cell E1 to 1 after sending the message or if it was already 1
+        $updateRange = 'Schedule!E1';
+        $updateBody = new Google_Service_Sheets_ValueRange([
+            'range' => $updateRange,
+            'values' => [[1]]
+        ]);
+        $params = ['valueInputOption' => 'RAW'];
+        $service->spreadsheets_values->update($spreadsheetId, $updateRange, $updateBody, $params);
+        
+    } catch (\Google\Service\Exception $e) {
+        echo "Error fetching raid days: " . $e->getMessage();
+    }
+}
+
+if ($_GET["cmd"] == "debug") {
+    sendToDiscord("Hey. I have just had a bump in version number and there is a good chance the schedule is now wrong. Could you all double check what days you are getting me loot? ");
+}
 ?>
